@@ -1,0 +1,5 @@
+dist/
+*.sqlite*
+.env
+art.b64
+terraces.png
