@@ -18,7 +18,7 @@ if($('#catalog')){
  document.querySelectorAll('.filters>*').forEach(x=>x.oninput=()=>{limit=12;filter()});$('#more').onclick=()=>{limit+=12;filter()};filter();
 }
 async function api(path,data){const r=await fetch('/api/'+path,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{});const out=await r.json();if(!r.ok)throw Error(out.error||'Ошибка соединения');return out}
-async function openCart(){if(!$('#cart').open)$('#cart').showModal();$('#message').textContent='';render();try{balance=(await api('balance')).balance;render()}catch{$('#message').textContent='Не удалось загрузить баланс. Откройте корзину повторно.'}}
+async function openCart(){if(!$('#cart').open)$('#cart').showModal();$('#message').textContent='';render();if(shop.staticView)return;try{balance=(await api('balance')).balance;render()}catch{$('#message').textContent='Не удалось загрузить баланс. Откройте корзину повторно.'}}
 $('#basket').onclick=openCart;$('#close').onclick=()=>$('#cart').close();
 if($('#buy')){const form=$('#buy');form.onchange=()=>$('#price').textContent=money(variants.get(form.sku.value).price);form.onsubmit=e=>{e.preventDefault();const sku=form.sku.value,line=cart.find(x=>x.sku===sku);if(line)line.qty=Math.min(99,line.qty+1);else cart.push({sku,qty:1});save();eventGoal('add_to_cart');openCart()}}
 function render(){
@@ -27,6 +27,7 @@ function render(){
  $('#lines').querySelectorAll('button').forEach(b=>b.onclick=()=>{cart[b.dataset.i].qty=Math.min(99,cart[b.dataset.i].qty+Number(b.dataset.d));cart=cart.filter(x=>x.qty);save();render()});
  const box=$('#checkout');box.innerHTML='';if(!cart.length)return;
  const sum=cart.reduce((s,x)=>s+variants.get(x.sku).price*x.qty,0);
+ if(shop.staticView){box.textContent='Итого '+money(sum)+'. Приём заказов откроется после подключения магазина.';return}
  box.innerHTML='<form id="order"><label>Имя<input name="customer" required maxlength="100" autocomplete="name"></label><label>Телефон<input name="phone" type="tel" required autocomplete="tel"></label><label>Получение<select name="mode"><option value="pickup">Самовывоз · бесплатно</option><option value="cdek">Курьер СДЭК</option></select></label><div id="destination" hidden><label>Индекс и полный адрес<input name="address" maxlength="400"></label><button type="button" id="quote" class="outline">Рассчитать доставку</button></div><label>Списать бонусы · доступно '+balance+'<input type="number" name="spent" value="0" min="0" max="'+Math.min(sum,balance)+'" required></label><strong id="total"></strong><button id="submit">Оформить заказ</button></form>';
  const f=$('#order'),msg=$('#message');function update(){const spent=Number(f.spent.value)||0;$('#total').textContent='Итого '+money(sum-spent+(fee||0))+(fee===null?' + доставка':'')+' · бонусов за заказ '+Math.floor((sum-spent)*.05);$('#submit').disabled=fee===null}
  f.mode.onchange=()=>{const delivery=f.mode.value==='cdek';$('#destination').hidden=!delivery;f.address.required=delivery;fee=delivery?null:0;msg.textContent='';update()};f.spent.oninput=update;f.address.oninput=()=>{fee=null;msg.textContent='';update()};
@@ -34,3 +35,4 @@ function render(){
  f.onsubmit=async e=>{e.preventDefault();$('#submit').disabled=true;try{const out=await api('orders',{key,name:f.customer.value,phone:f.phone.value,mode:f.mode.value,address:f.address.value,spent:Number(f.spent.value),lines:cart,fee});cart=[];save();render();$('#lines').textContent='Заказ № '+out.id.slice(0,8)+' оформлен.';msg.textContent='К оплате '+money(out.total)+'. Начислено бонусов: '+out.earned;eventGoal('order_complete')}catch(e){msg.textContent=e.message;update()}};update();
 }
 document.querySelectorAll('a[href^="#"]').forEach(a=>a.addEventListener('click',()=>{const target=document.getElementById(a.hash.slice(1));if(target?.tagName==='DETAILS')target.open=true}));
+
